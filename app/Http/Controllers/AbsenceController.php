@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Absence;
+use App\Models\DailyStatus;   // 🔹 Tambahan
 use Carbon\Carbon;
 
 class AbsenceController extends Controller
@@ -16,6 +17,31 @@ class AbsenceController extends Controller
         $user = auth()->user();
         $today = now('Asia/Jakarta')->toDateString();
 
+        /**
+         * =======================================================
+         *  🔥 AUTO ALPHA — Jika lewat jam tertentu & belum absen
+         * =======================================================
+         */
+        $autoTime = env('AUTO_ALPHA_TIME', '15.00'); 
+        $currentTime = now('Asia/Jakarta')->format('H:i');
+
+        $record = Absence::where('user_id', $user->id)
+            ->where('date', $today)
+            ->first();
+
+        if ($currentTime > $autoTime && !$record) {
+            Absence::create([
+                'user_id' => $user->id,
+                'date'    => $today,
+                'status'  => 'Alpha',
+            ]);
+        }
+
+        /**
+         * =======================================================
+         *  Ambil record hari ini & riwayat
+         * =======================================================
+         */
         $todayRecord = Absence::where('user_id', $user->id)
             ->where('date', $today)
             ->first();
@@ -27,8 +53,11 @@ class AbsenceController extends Controller
         return view('absence.index', compact('todayRecord', 'history'));
     }
 
+
     /**
-     * Check-in user.
+     * =======================================================
+     *  Check-in user
+     * =======================================================
      */
     public function checkIn()
     {
@@ -36,6 +65,18 @@ class AbsenceController extends Controller
         $today = now('Asia/Jakarta')->toDateString();
         $currentTime = now('Asia/Jakarta')->format('H:i:s');
 
+        /**
+         * 🔥 CEGAH ABSEN JIKA STATUS = izin / sakit / alpha
+         */
+        $dailyStatus = DailyStatus::where('user_id', $user->id)
+            ->where('date', $today)
+            ->first();
+
+        if ($dailyStatus && in_array(strtolower($dailyStatus->status), ['izin', 'sakit', 'alpha'])) {
+            return back()->with('error', 'Anda tidak bisa check-in karena status hari ini: ' . ucfirst($dailyStatus->status));
+        }
+
+        // Sudah absen?
         $record = Absence::where('user_id', $user->id)
             ->where('date', $today)
             ->first();
@@ -46,31 +87,41 @@ class AbsenceController extends Controller
 
         // Tentukan status otomatis
         $currentHour = now('Asia/Jakarta')->format('H:i');
-        if ($currentHour <= '09:00') {
-            $status = 'Tepat Waktu';
-        } else {
-            $status = 'Terlambat';
-        }
+        $status = ($currentHour <= '09:00') ? 'Tepat Waktu' : 'Terlambat';
 
         Absence::updateOrCreate(
             ['user_id' => $user->id, 'date' => $today],
             [
                 'time_in' => $currentTime,
-                'status' => $status,
+                'status'  => $status,
             ]
         );
 
         return back()->with('success', "Check-in berhasil! Status: $status");
     }
 
+
     /**
-     * Check-out user.
+     * =======================================================
+     *  Check-out user
+     * =======================================================
      */
     public function checkOut()
     {
         $user = auth()->user();
         $today = now('Asia/Jakarta')->toDateString();
         $currentTime = now('Asia/Jakarta')->format('H:i:s');
+
+        /**
+         * 🔥 CEGAH CHECK-OUT jika status = izin / sakit / alpha
+         */
+        $dailyStatus = DailyStatus::where('user_id', $user->id)
+            ->where('date', $today)
+            ->first();
+
+        if ($dailyStatus && in_array(strtolower($dailyStatus->status), ['izin', 'sakit', 'alpha'])) {
+            return back()->with('error', 'Anda tidak dapat check-out karena status Anda: ' . ucfirst($dailyStatus->status));
+        }
 
         $record = Absence::where('user_id', $user->id)
             ->where('date', $today)
@@ -86,11 +137,28 @@ class AbsenceController extends Controller
 
         $record->update(['time_out' => $currentTime]);
 
+        $overtimeRate = \App\Models\Overtime::where('user_id', $user->id)->first();
+
+    if ($overtimeRate) {
+        $endOfWork = Carbon::parse($today . ' 17:00:00');
+        $checkoutTime = Carbon::parse($today . ' ' . $currentTime);
+
+        if ($checkoutTime->gt($endOfWork)) {
+            $hours = $checkoutTime->floatDiffInHours($endOfWork);
+
+            $record->update([
+                'overtime_hours' => $hours,
+                'overtime_pay'   => round($hours * $overtimeRate->rate_per_hour)
+            ]);
+        }
+    }
+
         return back()->with('success', 'Check-out berhasil!');
     }
 
+
     /**
-     * Rekap absensi bulanan.
+     * Rekap absensi bulanan user
      */
     public function summary(Request $request)
     {

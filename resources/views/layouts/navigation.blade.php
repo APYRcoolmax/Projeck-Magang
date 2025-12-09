@@ -32,6 +32,17 @@
                             {{ __('Laporan Absensi') }}
                         </x-nav-link>
 
+                         <!-- 🔥 Menu Validasi Status User -->
+                        <x-nav-link :href="route('admin.user.validation')" 
+                                    :active="request()->routeIs('admin.user.validation')">
+                            {{ __('Validasi Status User') }}
+                        </x-nav-link>
+
+                        <!-- 🔥 Menu Lembur -->
+                        <x-nav-link :href="route('admin.overtime.index')" 
+                                    :active="request()->routeIs('admin.overtime.index')">
+                            {{ __('Pengaturan Lembur') }}
+                        </x-nav-link>
                     @endif
                 </div>
             </div>

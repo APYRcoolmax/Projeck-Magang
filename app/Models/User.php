@@ -44,4 +44,10 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function overtime()
+{
+    return $this->hasOne(\App\Models\Overtime::class, 'user_id');
+}
+
 }

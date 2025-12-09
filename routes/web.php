@@ -3,7 +3,9 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\Admin\AbsenceAdminController;
+use App\Http\Controllers\Admin\OvertimeController;
 use Illuminate\Support\Facades\Route;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -55,24 +57,39 @@ Route::middleware(['auth', 'isAdmin'])->group(function () {
     Route::post('/admin/absences/{id}/update', [AbsenceAdminController::class, 'update'])
         ->name('admin.absences.update');
 
-    // Tambah Absensi Secara Manual untuk User
+    // Tambah Absensi Manual
     Route::get('/admin/absences/create', [AbsenceAdminController::class, 'create'])
         ->name('admin.absences.create');
     Route::post('/admin/absences/store', [AbsenceAdminController::class, 'store'])
         ->name('admin.absences.store');
 
-    // Update status via dropdown
+    // Update status dropdown
     Route::put('/admin/absences/{id}/status', [AbsenceAdminController::class, 'updateStatus'])
         ->name('admin.absences.updateStatus');
-});
 
-    // 🔹 Laporan Bulanan & Harian untuk Admin
-    Route::middleware(['auth', 'isAdmin'])->group(function () {
-    Route::get('/admin/reports', [AbsenceAdminController::class, 'reports'])->name('admin.reports.index');
+    // ================== Laporan ================== //
+    Route::get('/admin/reports', [AbsenceAdminController::class, 'reports'])
+        ->name('admin.reports.index');
 
-    // Export laporan
-    Route::get('/admin/reports/export/pdf', [AbsenceAdminController::class, 'exportReportPdf'])->name('admin.reports.export.pdf');
-    Route::get('/admin/reports/export/excel', [AbsenceAdminController::class, 'exportReportExcel'])->name('admin.reports.export.excel');
+    Route::get('/admin/reports/export/pdf', [AbsenceAdminController::class, 'exportReportPdf'])
+        ->name('admin.reports.export.pdf');
+
+    Route::get('/admin/reports/export/excel', [AbsenceAdminController::class, 'exportReportExcel'])
+        ->name('admin.reports.export.excel');
+
+    // ================== VALIDASI STATUS USER ================== //
+    Route::get('/admin/user/validation', [AbsenceAdminController::class, 'userValidation'])
+        ->name('admin.user.validation');
+
+    Route::post('/admin/user/validation/update', [AbsenceAdminController::class, 'updateUserValidation'])
+        ->name('admin.user.validation.update');
+
+    // ================== LEMBUR ================== //
+    Route::get('/admin/overtime', [OvertimeController::class, 'index'])
+        ->name('admin.overtime.index');
+
+    Route::post('/admin/overtime/update', [OvertimeController::class, 'update'])
+        ->name('admin.overtime.update');
 });
 
 

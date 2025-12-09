@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Absence;
 use App\Models\User;
+use App\Models\DailyStatus;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
@@ -14,9 +15,7 @@ use App\Exports\ReportExport;
 class AbsenceAdminController extends Controller
 {
     /**
-     * -------------------------------
-     * 1. Halaman Manajemen Absensi
-     * -------------------------------
+     * Halaman Manajemen Absensi
      */
     public function index(Request $request)
     {
@@ -37,11 +36,40 @@ class AbsenceAdminController extends Controller
         return view('admin.absence.index', compact('absences'));
     }
 
+    /**
+     * Tampilkan halaman validasi user (Admin)
+     */
+    public function userValidation()
+    {
+        $users = User::where('role', 'karyawan')->get();
+        return view('admin.validation.index', compact('users'));
+    }
 
     /**
-     * -------------------------------
-     * 2. Edit Status Absensi
-     * -------------------------------
+     * Update status harian user (dipanggil dari form validasi)
+     */
+    public function updateUserValidation(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'status'  => 'required|string|in:aktif,izin,sakit,alpha'
+        ]);
+
+        DailyStatus::updateOrCreate(
+            [
+                'user_id' => $request->user_id,
+                'date'    => now('Asia/Jakarta')->toDateString()
+            ],
+            [
+                'status' => $request->status
+            ]
+        );
+
+        return back()->with('success', 'Status user berhasil diperbarui!');
+    }
+
+    /**
+     * Edit status absensi (admin)
      */
     public function edit($id)
     {
@@ -53,24 +81,21 @@ class AbsenceAdminController extends Controller
     {
         $request->validate([
             'status' => 'required|string',
-            'notes' => 'nullable|string'
+            'notes'  => 'nullable|string'
         ]);
 
         $absence = Absence::findOrFail($id);
         $absence->update([
             'status' => $request->status,
-            'notes' => $request->notes
+            'notes'  => $request->notes
         ]);
 
         return redirect()->route('admin.absences.index')
             ->with('success', 'Status absensi berhasil diperbarui!');
     }
 
-
     /**
-     * -------------------------------
-     * 3. Tambah Absensi Manual
-     * -------------------------------
+     * Tambah absensi manual (admin)
      */
     public function create()
     {
@@ -90,23 +115,20 @@ class AbsenceAdminController extends Controller
         ]);
 
         Absence::create([
-            'user_id' => $request->user_id,
-            'date' => $request->date,
-            'time_in' => $request->time_in,
+            'user_id'  => $request->user_id,
+            'date'     => $request->date,
+            'time_in'  => $request->time_in,
             'time_out' => $request->time_out,
-            'status' => $request->status,
-            'notes' => $request->notes
+            'status'   => $request->status,
+            'notes'    => $request->notes
         ]);
 
         return redirect()->route('admin.absences.index')
             ->with('success', 'Absensi berhasil ditambahkan!');
     }
 
-
     /**
-     * -------------------------------
-     * 4. Laporan Absensi
-     * -------------------------------
+     * Laporan (admin)
      */
     public function reports(Request $request)
     {
@@ -126,11 +148,8 @@ class AbsenceAdminController extends Controller
         return view('admin.report.index', compact('absences'));
     }
 
-
     /**
-     * -------------------------------
-     * 5. Export PDF
-     * -------------------------------
+     * Export report PDF
      */
     public function exportReportPdf(Request $request)
     {
@@ -153,11 +172,8 @@ class AbsenceAdminController extends Controller
         return $pdf->download('laporan-absensi.pdf');
     }
 
-
     /**
-     * -------------------------------
-     * 6. Export Excel
-     * -------------------------------
+     * Export report Excel
      */
     public function exportReportExcel(Request $request)
     {
