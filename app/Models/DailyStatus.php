@@ -12,12 +12,21 @@ class DailyStatus extends Model
     protected $fillable = [
         'user_id',
         'date',
-        'status',
+        'type', // Izin, Sakit, Cuti
+        'reason',
+        'attachment',
+        'approval_status', // pending, approved, declined
+        'approved_by',
     ];
 
-    // Relasi ke User
+    // Hubungan (Relationship) dengan User
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

@@ -28,37 +28,24 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request)
-{
-    $request->validate([
-        'name' => ['required', 'string', 'max:255'],
-        'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-        'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        'kode_referensi' => ['required', 'string'],
-    ]);
+    public function store(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
 
-    // Tentukan role berdasarkan kode referensi
-    $role = 'karyawan'; // default
-    if ($request->kode_referensi === 'AKUADMIN') {
-        $role = 'admin';
-    } elseif ($request->kode_referensi === 'AKUKARYAWAN') {
-        $role = 'karyawan';
-    } else {
-        return back()->withErrors(['kode_referensi' => 'Kode referensi tidak valid.']);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        event(new Registered($user));
+
+        Auth::login($user);
+
+        return redirect(RouteServiceProvider::HOME);
     }
-
-    // Buat user baru
-    $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-        'role' => $role,
-    ]);
-
-    event(new Registered($user));
-    Auth::login($user);
-
-    return redirect(RouteServiceProvider::HOME);
-}
-
 }

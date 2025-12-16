@@ -4,8 +4,14 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\Admin\AbsenceAdminController;
 use App\Http\Controllers\Admin\OvertimeController;
+use App\Http\Controllers\DailyStatusController; 
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
 
 Route::get('/', function () {
     return view('welcome');
@@ -16,12 +22,12 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 
-// =======================
-// USER ROUTES
-// =======================
+// =========================================================================
+// USER/KARYAWAN ROUTES (HANYA MEMBUTUHKAN 'auth')
+// =========================================================================
 Route::middleware('auth')->group(function () {
 
-    // Profile
+    // Profile (Dari Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -31,66 +37,50 @@ Route::middleware('auth')->group(function () {
     Route::post('/absence/check-in', [AbsenceController::class, 'checkIn'])->name('absence.checkin');
     Route::post('/absence/check-out', [AbsenceController::class, 'checkOut'])->name('absence.checkout');
 
-    // Rekap User
+    // Rekap Absensi User
     Route::get('/absence/summary', [AbsenceController::class, 'summary'])->name('absence.summary');
+    
+    // Status Harian User (Pengajuan)
+    Route::get('/daily-status', [DailyStatusController::class, 'index'])->name('daily_status.index'); 
+    Route::get('/daily-status/create', [DailyStatusController::class, 'create'])->name('daily_status.create');
+    Route::post('/daily-status/store', [DailyStatusController::class, 'store'])->name('daily_status.store');
 });
 
 
-// =======================
-// ADMIN ROUTES
-// =======================
-Route::middleware(['auth', 'isAdmin'])->group(function () {
+// =========================================================================
+// ADMIN ROUTES (MEMBUTUHKAN 'auth' DAN 'isAdmin')
+// =========================================================================
+Route::middleware(['auth', 'isAdmin'])->prefix('admin')->name('admin.')->group(function () {
 
-    // Dashboard Absensi Admin
-    Route::get('/admin/absences', [AbsenceAdminController::class, 'index'])
-        ->name('admin.absences.index');
+    // -- ABSENSI & LAPORAN --
+    Route::get('/absences', [AbsenceAdminController::class, 'index'])->name('absences.index');
+    Route::get('/absences/create', [AbsenceAdminController::class, 'create'])->name('absences.create');
+    Route::post('/absences/store', [AbsenceAdminController::class, 'store'])->name('absences.store');
+    Route::get('/absences/{id}/edit', [AbsenceAdminController::class, 'edit'])->name('absences.edit');
+    Route::post('/absences/{id}/update', [AbsenceAdminController::class, 'update'])->name('absences.update');
+    Route::put('/absences/{id}/status', [AbsenceAdminController::class, 'updateStatus'])->name('absences.updateStatus');
 
-    // Export
-    Route::get('/admin/absences/export/pdf', [AbsenceAdminController::class, 'exportPdf'])
-        ->name('admin.absences.export.pdf');
-    Route::get('/admin/absences/export/excel', [AbsenceAdminController::class, 'exportExcel'])
-        ->name('admin.absences.export.excel');
+    // Laporan & Export
+    Route::get('/reports', [AbsenceAdminController::class, 'reports'])->name('reports.index');
+    Route::get('/reports/export/pdf', [AbsenceAdminController::class, 'exportReportPdf'])->name('reports.export.pdf');
+    Route::get('/reports/export/excel', [AbsenceAdminController::class, 'exportReportExcel'])->name('reports.export.excel');
 
-    // Edit Status Absensi
-    Route::get('/admin/absences/{id}/edit', [AbsenceAdminController::class, 'edit'])
-        ->name('admin.absences.edit');
-    Route::post('/admin/absences/{id}/update', [AbsenceAdminController::class, 'update'])
-        ->name('admin.absences.update');
+    // -- VALIDASI STATUS HARIAN (Perbaikan Sinkronisasi dan Penambahan Route Aksi) --
+    // GANTI METHOD: dari userValidation() menjadi dailyStatusIndex()
+    Route::get('/daily-status', [AbsenceAdminController::class, 'dailyStatusIndex'])->name('daily_status.index'); 
+    
+    // TAMBAHAN: Route Persetujuan
+    Route::post('/daily-status/{id}/approve', [AbsenceAdminController::class, 'approveDailyStatus'])->name('daily_status.approve');
+    
+    // TAMBAHAN: Route Penolakan
+    Route::post('/daily-status/{id}/reject', [AbsenceAdminController::class, 'rejectDailyStatus'])->name('daily_status.reject');
 
-    // Tambah Absensi Manual
-    Route::get('/admin/absences/create', [AbsenceAdminController::class, 'create'])
-        ->name('admin.absences.create');
-    Route::post('/admin/absences/store', [AbsenceAdminController::class, 'store'])
-        ->name('admin.absences.store');
 
-    // Update status dropdown
-    Route::put('/admin/absences/{id}/status', [AbsenceAdminController::class, 'updateStatus'])
-        ->name('admin.absences.updateStatus');
-
-    // ================== Laporan ================== //
-    Route::get('/admin/reports', [AbsenceAdminController::class, 'reports'])
-        ->name('admin.reports.index');
-
-    Route::get('/admin/reports/export/pdf', [AbsenceAdminController::class, 'exportReportPdf'])
-        ->name('admin.reports.export.pdf');
-
-    Route::get('/admin/reports/export/excel', [AbsenceAdminController::class, 'exportReportExcel'])
-        ->name('admin.reports.export.excel');
-
-    // ================== VALIDASI STATUS USER ================== //
-    Route::get('/admin/user/validation', [AbsenceAdminController::class, 'userValidation'])
-        ->name('admin.user.validation');
-
-    Route::post('/admin/user/validation/update', [AbsenceAdminController::class, 'updateUserValidation'])
-        ->name('admin.user.validation.update');
-
-    // ================== LEMBUR ================== //
-    Route::get('/admin/overtime', [OvertimeController::class, 'index'])
-        ->name('admin.overtime.index');
-
-    Route::post('/admin/overtime/update', [OvertimeController::class, 'update'])
-        ->name('admin.overtime.update');
+    // -- PENGATURAN LEMBUR & REKAP --
+    Route::get('/overtime', [OvertimeController::class, 'index'])->name('overtime.index');
+    Route::post('/overtime/update', [OvertimeController::class, 'update'])->name('overtime.update');
 });
 
 
+// Route Otentikasi Breeze/Fortify
 require __DIR__ . '/auth.php';

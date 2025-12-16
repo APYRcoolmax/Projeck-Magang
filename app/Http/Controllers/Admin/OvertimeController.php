@@ -4,23 +4,51 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Overtime;
+use App\Models\Overtime; // Pastikan model Overtime benar
 use Illuminate\Http\Request;
 
 class OvertimeController extends Controller
 {
+    /**
+     * Menampilkan daftar pengguna (karyawan dan admin) untuk mengatur nominal lembur.
+     *
+     * @return \Illuminate\View\View
+     */
     public function index()
     {
-        $users = User::where('role', 'karyawan')->with('overtime')->get();
+        // 🟢 PERBAIKAN: Mengganti where('role', 'karyawan') dengan whereIn()
+        // untuk menyertakan peran 'admin' dan 'karyawan'.
+        $users = User::whereIn('role', ['karyawan', 'admin'])
+                      ->with('overtime')
+                      ->orderBy('name') // Tambahkan orderBy agar daftar rapi
+                      ->get();
+                      
         return view('admin.overtime.index', compact('users'));
     }
 
+    /**
+     * Memperbarui nominal lembur per jam untuk pengguna yang dipilih.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function update(Request $request)
     {
+        // Pastikan Anda melakukan validasi data sebelum menyimpan ke database
+        $request->validate([
+            'rate' => 'required|array',
+            'rate.*' => 'nullable|numeric|min:0', // Memastikan setiap nilai adalah angka
+        ]);
+
         foreach ($request->rate as $userId => $rate) {
+            
+            // Konversi ID pengguna ke integer (untuk keamanan)
+            $userId = (int) $userId; 
+            
+            // Lakukan update atau create record Overtime
             Overtime::updateOrCreate(
                 ['user_id' => $userId],
-                ['rate_per_hour' => $rate]
+                ['rate_per_hour' => $rate ?? 0] // Pastikan menggunakan 0 jika rate kosong
             );
         }
 
