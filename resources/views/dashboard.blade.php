@@ -60,6 +60,50 @@
                         </div>
                     </div>
 
+                    {{-- ========================================================== --}}
+                    {{-- TAMBAHAN: GRAFIK TREN & AKSI CEPAT ADMIN                   --}}
+                    {{-- ========================================================== --}}
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                        <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Tren Kehadiran (7 Hari Terakhir)</h3>
+                            </div>
+                            <div class="h-64">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-100 dark:border-gray-700">
+                            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Aksi Cepat</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <a href="{{ route('admin.reports.index') }}" class="p-4 bg-indigo-50 dark:bg-slate-700 rounded-xl hover:bg-indigo-100 transition text-center group">
+                                    <i class="fas fa-file-invoice text-indigo-600 dark:text-indigo-400 mb-2 block text-xl group-hover:scale-110 transition"></i>
+                                    <span class="text-xs font-bold dark:text-gray-200">Laporan</span>
+                                </a>
+                                <a href="{{ route('admin.salaries.index') }}" class="p-4 bg-emerald-50 dark:bg-slate-700 rounded-xl hover:bg-emerald-100 transition text-center group">
+                                    <i class="fas fa-money-check-alt text-emerald-600 dark:text-emerald-400 mb-2 block text-xl group-hover:scale-110 transition"></i>
+                                    <span class="text-xs font-bold dark:text-gray-200">Gaji</span>
+                                </a>
+                            </div>
+                            
+                            <div class="mt-8 border-t border-gray-100 dark:border-gray-700 pt-6">
+                                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Ringkasan Sistem</h3>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center text-sm">
+                                        <span class="text-gray-500">Potongan Terlambat</span>
+                                        {{-- Update angka persen dari database --}}
+                                        <span class="font-bold text-yellow-600">{{ number_format($salaryRule->late_deduction ?? 0, 0) }}%</span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-sm">
+                                        <span class="text-gray-500">Potongan Tidak Masuk</span>
+                                        {{-- Update angka persen dari database --}}
+                                        <span class="font-bold text-red-600">{{ number_format($salaryRule->alpha_deduction ?? 0, 0) }}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- KOMPONEN MODAL POP-UP --}}
                     <div x-show="openModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" @keydown.escape.window="openModal = false">
                         <div class="flex items-center justify-center min-h-screen px-4">
@@ -97,9 +141,45 @@
                         </div>
                     </div>
                 </div> {{-- End x-data --}}
+
+                {{-- SCRIPT CHART.JS KHUSUS ADMIN --}}
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const ctx = document.getElementById('attendanceChart').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: {!! json_encode($labels ?? []) !!},
+                                datasets: [{
+                                    label: 'Jumlah Kehadiran',
+                                    data: {!! json_encode($attendanceData ?? []) !!},
+                                    borderColor: '#4f46e5',
+                                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                    fill: true,
+                                    tension: 0.4,
+                                    borderWidth: 3,
+                                    pointRadius: 4,
+                                    pointBackgroundColor: '#4f46e5'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false }
+                                },
+                                scales: {
+                                    y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                                    x: { grid: { display: false } }
+                                }
+                            }
+                        });
+                    });
+                </script>
             @else
                 {{-- ========================================================== --}}
-                {{-- TAMPILAN KHUSUS USER (KEMBALI KE VERSI LAMA ANDA)         --}}
+                {{-- TAMPILAN KHUSUS USER (TETAP SAMA)                          --}}
                 {{-- ========================================================== --}}
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg mb-8 p-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">

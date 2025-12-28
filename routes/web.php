@@ -8,7 +8,7 @@ use App\Http\Controllers\DailyStatusController;
 use App\Http\Controllers\Admin\SalaryController; // Import Controller Gaji
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Admin\ReportController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -34,7 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
+    Route::patch('/profile/photo', [ProfileController::class, 'updatePhoto'])->name('profile.update-photo');
     // Absensi User
     Route::get('/absence', [AbsenceController::class, 'index'])->name('absence.index');
     Route::post('/absence/check-in', [AbsenceController::class, 'checkIn'])->name('absence.checkin');
@@ -86,6 +86,8 @@ Route::middleware(['auth', 'isAdmin'])->prefix('admin')->name('admin.')->group(f
     // Update setting potongan terlambat global
     Route::post('/salaries/settings', [SalaryController::class, 'updateSettings'])->name('salaries.updateSettings');
     
+    // Reportt
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 });
 
 // Route Otentikasi Breeze/Fortify

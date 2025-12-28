@@ -21,8 +21,6 @@ class AbsenceAdminController extends Controller
 
     public function index(Request $request)
 {
-    // Ambil data absensi dengan relasi user
-    // Tambahkan filter global agar role 'admin' tidak ikut terdata
     $query = Absence::with('user')->whereHas('user', function ($q) {
         $q->where('role', '!=', 'admin');
     });
@@ -140,55 +138,81 @@ class AbsenceAdminController extends Controller
     /**
      * Tampilkan halaman laporan dan filter absensi (Disinkronkan dengan view filter Bulan/Tahun).
      */
-   public function reports(Request $request)
-{
-    $month = $request->get('month', date('m'));
-    $year = $request->get('year', date('Y'));
-    $date = $request->date;
-
-    $lateDeductionAmount = \App\Models\Setting::where('key', 'late_deduction_amount')->value('value') ?? 0;
-
-    $query = \App\Models\User::where('role', '!=', 'admin')
-        ->with(['salary', 'absences' => function($q) use ($month, $year, $date) {
-            if ($date) {
-                $q->whereDate('date', $date);
-            } else {
-                $q->whereMonth('date', $month)->whereYear('date', $year);
-            }
-        }]);
-
-    $users = $query->paginate(15)->withQueryString();
-
-    $reportData = $users->getCollection()->map(function($user) use ($lateDeductionAmount) {
-        $absences = $user->absences;
-        
-        // Gunakan optional() agar tidak error jika user belum punya data di tabel salaries
-        $basicSalary = optional($user->salary)->basic_salary ?? 0;
-        $totalOvertimePay = $absences->sum('overtime_pay');
-        
-        $attendanceCount = $absences->whereNotNull('time_in')->count();
-        
-        // Perbaikan: Gunakan filter agar lebih aman terhadap perbedaan huruf besar/kecil (Late vs late)
-        $lateCount = $absences->filter(function($item) {
-            return strtolower($item->status) === 'late' || strtolower($item->status) === 'terlambat';
-        })->count();
-        
-        $totalDeduction = $lateCount * $lateDeductionAmount;
-        $takeHomePay = ($basicSalary + $totalOvertimePay) - $totalDeduction;
-
-        return [
-            'name' => $user->name,
-            'attendance_count' => $attendanceCount,
-            'late_count' => $lateCount,
-            'basic_salary' => $basicSalary,
-            'overtime_pay' => $totalOvertimePay,
-            'total_deduction' => $totalDeduction,
-            'take_home_pay' => $takeHomePay,
-        ];
-    });
-
-    return view('admin.reports.index', compact('users', 'reportData', 'month', 'year', 'date'));
-}
+    public function reports(Request $request)
+    {
+        $month = $request->get('month', date('m'));
+        $year = $request->get('year', date('Y'));
+        $date = $request->date;
+    
+        $query = \App\Models\User::where('role', '!=', 'admin')
+            ->with(['salary', 'absences' => function($q) use ($month, $year, $date) {
+                if ($date) {
+                    $q->whereDate('date', $date);
+                } else {
+                    $q->whereMonth('date', $month)->whereYear('date', $year);
+                }
+            }]);
+    
+        $users = $query->paginate(15)->withQueryString();
+    
+        $reportData = $users->getCollection()->map(function($user) {
+            $absences = $user->absences;
+            $salaryData = $user->salary;
+            $basicSalary = $salaryData->basic_salary ?? 0;
+            
+            $latePercent = ($salaryData->late_deduction ?? 0) / 100;
+            $alphaPercent = ($salaryData->alpha_deduction ?? 0) / 100;
+    
+            $totalOvertimePay = $absences->sum('overtime_pay');
+            $attendanceCount = $absences->whereNotNull('time_in')->count();
+            
+            // 1. Hitung frekuensi keterlambatan
+            $lateCount = $absences->filter(function($item) {
+                $status = strtolower(trim($item->status));
+                return in_array($status, ['late', 'terlambat']);
+            })->count();
+    
+            // 2. Hitung frekuensi alpha
+            $alphaCount = $absences->filter(function($item) {
+                $status = strtolower(trim($item->status));
+                return in_array($status, ['alpha', 'mangkir']);
+            })->count();
+    
+            // 3. TAMBAHKAN: Hitung frekuensi Sakit
+            $sickCount = $absences->filter(function($item) {
+                $status = strtolower(trim($item->status));
+                return in_array($status, ['sakit', 'sick']);
+            })->count();
+    
+            // 4. TAMBAHKAN: Hitung frekuensi Izin
+            $leaveCount = $absences->filter(function($item) {
+                $status = strtolower(trim($item->status));
+                return in_array($status, ['izin', 'leave', 'permission']);
+            })->count();
+            
+            // KALKULASI POTONGAN
+            $lateDeductionTotal = $lateCount * $latePercent * $basicSalary;
+            $alphaDeductionTotal = $alphaCount * $alphaPercent * $basicSalary;
+            
+            $totalDeduction = $lateDeductionTotal + $alphaDeductionTotal;
+            $takeHomePay = ($basicSalary + $totalOvertimePay) - $totalDeduction;
+    
+            return [
+                'name' => $user->name,
+                'attendance_count' => $attendanceCount,
+                'late_count' => $lateCount,
+                'alpha_count' => $alphaCount,
+                'sick_count' => $sickCount,    // Kirim ke Blade
+                'leave_count' => $leaveCount,  // Kirim ke Blade
+                'basic_salary' => $basicSalary,
+                'overtime_pay' => $totalOvertimePay,
+                'total_deduction' => $totalDeduction,
+                'take_home_pay' => $takeHomePay,
+            ];
+        });
+    
+        return view('admin.reports.index', compact('users', 'reportData', 'month', 'year', 'date'));
+    }
 
     /**
      * Export Laporan Absensi ke PDF.

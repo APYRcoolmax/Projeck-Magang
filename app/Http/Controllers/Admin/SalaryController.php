@@ -1,18 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Admin; // Pastikan namespace sesuai struktur folder Anda
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Salary;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class SalaryController extends Controller
 {
-    /**
-     * Menampilkan daftar semua karyawan beserta data gaji & potongan mereka.
-     */
     public function index()
     {
         $employees = User::where('role', '!=', 'admin')
@@ -20,75 +16,75 @@ class SalaryController extends Controller
                             ->orderBy('name')
                             ->get();
 
-        // Tetap ambil potongan global sebagai cadangan jika diperlukan
-        $lateDeduction = Setting::where('key', 'late_deduction_amount')->first();
+        // Ambil contoh data untuk ditampilkan di form global
+        $sampleSalary = Salary::first(); 
 
-        return view('admin.salaries.index', compact('employees', 'lateDeduction'));
+        return view('admin.salaries.index', compact('employees', 'sampleSalary'));
     }
 
     /**
-     * Menyimpan atau memperbarui gaji pokok DAN potongan individu karyawan.
-     */
-    public function update(Request $request, string $id)
-    {
-        // 1. Validasi semua input baru
-        $request->validate([
-            'basic_salary'    => 'required|integer|min:0',
-            'late_deduction'  => 'nullable|integer|min:0',
-            'alpha_deduction' => 'nullable|integer|min:0',
-        ]);
-
-        // 2. Update atau buat data di tabel salaries
-        Salary::updateOrCreate(
-            ['user_id' => $id], 
-            [
-                'basic_salary'    => $request->basic_salary,
-                'late_deduction'  => $request->late_deduction ?? 0,
-                'alpha_deduction' => $request->alpha_deduction ?? 0,
-            ]
-        );
-
-        return redirect()->route('admin.salaries.index')->with('success', 'Data gaji dan potongan karyawan berhasil diperbarui.');
-    }
-
-    /**
-     * Method Store disamakan logikanya dengan Update
-     */
-    public function store(Request $request)
-    {
-        $request->validate([
-            'user_id'         => 'required|exists:users,id',
-            'basic_salary'    => 'required|integer|min:0',
-            'late_deduction'  => 'nullable|integer|min:0',
-            'alpha_deduction' => 'nullable|integer|min:0',
-        ]);
-
-        Salary::updateOrCreate(
-            ['user_id' => $request->user_id],
-            [
-                'basic_salary'    => $request->basic_salary,
-                'late_deduction'  => $request->late_deduction ?? 0,
-                'alpha_deduction' => $request->alpha_deduction ?? 0,
-            ]
-        );
-
-        return redirect()->route('admin.salaries.index')->with('success', 'Gaji karyawan berhasil diperbarui.');
-    }
-
-    /**
-     * UPDATE SETTINGS GLOBAL (Opsional jika masih ingin digunakan)
+     * COCOK DENGAN ROUTE: Route::post('/salaries/settings', ...)
+     * Fungsi: Update Potongan (Global)
      */
     public function updateSettings(Request $request)
     {
         $request->validate([
-            'late_deduction_amount' => 'required|integer|min:0',
+            'late_deduction'  => 'required|numeric|min:0|max:100',
+            'alpha_deduction' => 'required|numeric|min:0|max:100',
         ]);
 
-        Setting::updateOrCreate(
-            ['key' => 'late_deduction_amount'],
-            ['value' => $request->late_deduction_amount]
-        );
+        // 1. UPDATE MASSAL ke seluruh data salary yang ada
+        Salary::query()->update([
+            'late_deduction'  => $request->late_deduction,
+            'alpha_deduction' => $request->alpha_deduction,
+        ]);
 
-        return redirect()->route('admin.salaries.index')->with('success', 'Pengaturan potongan global berhasil diperbarui.');
+        // 2. (Opsional) Jika ada user baru yg belum punya record salary, buatkan defaultnya
+        // agar aturan potongan langsung berlaku.
+        $usersWithoutSalary = User::where('role', '!=', 'admin')->doesntHave('salary')->get();
+        foreach($usersWithoutSalary as $user) {
+            Salary::create([
+                'user_id' => $user->id,
+                'basic_salary' => 0, // Gaji pokok 0 dulu
+                'late_deduction' => $request->late_deduction,
+                'alpha_deduction' => $request->alpha_deduction
+            ]);
+        }
+
+        return back()->with('success', 'Potongan global berhasil diperbarui untuk semua karyawan.');
+    }
+
+    /**
+     * COCOK DENGAN ROUTE: Route::put('/salaries/{id}', ...)
+     * Fungsi: Update Gaji Pokok (Individu)
+     */
+    public function update(Request $request, string $id)
+    {
+        $request->validate([
+            'basic_salary' => 'required|integer|min:0',
+        ]);
+
+        // Kita update basic_salary saja, jangan timpa late_deduction/alpha_deduction
+        // Gunakan updateOrCreate untuk jaga-jaga jika data belum ada
+        $salary = Salary::where('user_id', $id)->first();
+
+        if ($salary) {
+            $salary->update(['basic_salary' => $request->basic_salary]);
+        } else {
+            // Jika data baru dibuat di sini, ambil default potongan 0 (nanti diupdate via global)
+            Salary::create([
+                'user_id' => $id,
+                'basic_salary' => $request->basic_salary,
+                'late_deduction' => 0,
+                'alpha_deduction' => 0
+            ]);
+        }
+
+        return back()->with('success', 'Gaji pokok karyawan berhasil disimpan.');
+    }
+    
+    // Fungsi payrollReport (sesuai route Anda) biarkan kosong dulu atau isi sesuai kebutuhan
+    public function payrollReport() {
+        return view('admin.salaries.report'); // Contoh return view
     }
 }
