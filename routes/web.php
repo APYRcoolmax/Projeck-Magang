@@ -5,6 +5,8 @@ use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\Admin\AbsenceAdminController;
 use App\Http\Controllers\Admin\OvertimeController;
 use App\Http\Controllers\DailyStatusController; 
+use App\Http\Controllers\Admin\SalaryController; // Import Controller Gaji
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,9 +19,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+// Route Dashboard (Otomatis mengarah ke Controller yang menghitung statistik)
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 
 // =========================================================================
@@ -27,7 +30,7 @@ Route::get('/dashboard', function () {
 // =========================================================================
 Route::middleware('auth')->group(function () {
 
-    // Profile (Dari Breeze)
+    // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -64,23 +67,26 @@ Route::middleware(['auth', 'isAdmin'])->prefix('admin')->name('admin.')->group(f
     Route::get('/reports', [AbsenceAdminController::class, 'reports'])->name('reports.index');
     Route::get('/reports/export/pdf', [AbsenceAdminController::class, 'exportReportPdf'])->name('reports.export.pdf');
     Route::get('/reports/export/excel', [AbsenceAdminController::class, 'exportReportExcel'])->name('reports.export.excel');
-
-    // -- VALIDASI STATUS HARIAN (Perbaikan Sinkronisasi dan Penambahan Route Aksi) --
-    // GANTI METHOD: dari userValidation() menjadi dailyStatusIndex()
+    // -- VALIDASI STATUS HARIAN --
     Route::get('/daily-status', [AbsenceAdminController::class, 'dailyStatusIndex'])->name('daily_status.index'); 
-    
-    // TAMBAHAN: Route Persetujuan
     Route::post('/daily-status/{id}/approve', [AbsenceAdminController::class, 'approveDailyStatus'])->name('daily_status.approve');
-    
-    // TAMBAHAN: Route Penolakan
     Route::post('/daily-status/{id}/reject', [AbsenceAdminController::class, 'rejectDailyStatus'])->name('daily_status.reject');
 
-
-    // -- PENGATURAN LEMBUR & REKAP --
+    // -- PENGATURAN LEMBUR --
     Route::get('/overtime', [OvertimeController::class, 'index'])->name('overtime.index');
     Route::post('/overtime/update', [OvertimeController::class, 'update'])->name('overtime.update');
-});
 
+    // -- 🟢 MANAJEMEN GAJI (TAMBAHAN BARU) --
+    //Laporan gaji
+    Route::get('/salaries/report', [SalaryController::class, 'payrollReport'])->name('salaries.report');
+    // Menampilkan daftar gaji & setting potongan
+    Route::get('/salaries', [SalaryController::class, 'index'])->name('salaries.index');
+    // Update gaji pokok individu
+    Route::put('/salaries/{id}', [SalaryController::class, 'update'])->name('salaries.update');
+    // Update setting potongan terlambat global
+    Route::post('/salaries/settings', [SalaryController::class, 'updateSettings'])->name('salaries.updateSettings');
+    
+});
 
 // Route Otentikasi Breeze/Fortify
 require __DIR__ . '/auth.php';

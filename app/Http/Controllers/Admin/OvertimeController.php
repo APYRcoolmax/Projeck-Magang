@@ -15,16 +15,16 @@ class OvertimeController extends Controller
      * @return \Illuminate\View\View
      */
     public function index()
-    {
-        // 🟢 PERBAIKAN: Mengganti where('role', 'karyawan') dengan whereIn()
-        // untuk menyertakan peran 'admin' dan 'karyawan'.
-        $users = User::whereIn('role', ['karyawan', 'admin'])
-                      ->with('overtime')
-                      ->orderBy('name') // Tambahkan orderBy agar daftar rapi
-                      ->get();
-                      
-        return view('admin.overtime.index', compact('users'));
-    }
+{
+    // 🟢 PERBAIKAN: Menghapus 'admin' dari daftar
+    // Hanya menyertakan role 'karyawan' atau selain 'admin' agar admin tidak perlu diatur lemburnya.
+    $users = User::where('role', '!=', 'admin')
+                  ->with('overtime')
+                  ->orderBy('name') 
+                  ->get();
+                  
+    return view('admin.overtime.index', compact('users'));
+}
 
     /**
      * Memperbarui nominal lembur per jam untuk pengguna yang dipilih.

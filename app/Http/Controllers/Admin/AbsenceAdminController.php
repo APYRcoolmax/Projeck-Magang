@@ -20,23 +20,30 @@ class AbsenceAdminController extends Controller
     // ... method index, edit, update, create, store, dailyStatusIndex, approveDailyStatus, rejectDailyStatus (TIDAK DIUBAH) ...
 
     public function index(Request $request)
-    {
-        $query = Absence::with('user');
+{
+    // Ambil data absensi dengan relasi user
+    // Tambahkan filter global agar role 'admin' tidak ikut terdata
+    $query = Absence::with('user')->whereHas('user', function ($q) {
+        $q->where('role', '!=', 'admin');
+    });
 
-        if ($request->filled('date')) {
-            $query->whereDate('date', $request->date);
-        }
-
-        if ($request->filled('name')) {
-            $query->whereHas('user', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->name . '%');
-            });
-        }
-
-        $absences = $query->orderBy('date', 'desc')->paginate(10);
-
-        return view('admin.absence.index', compact('absences'));
+    // Filter berdasarkan tanggal jika diinput
+    if ($request->filled('date')) {
+        $query->whereDate('date', $request->date);
     }
+
+    // Filter berdasarkan nama karyawan jika diinput
+    if ($request->filled('name')) {
+        $query->whereHas('user', function ($q) use ($request) {
+            $q->where('name', 'like', '%' . $request->name . '%');
+        });
+    }
+
+    // Urutkan berdasarkan tanggal terbaru dan gunakan pagination
+    $absences = $query->orderBy('date', 'desc')->paginate(10);
+
+    return view('admin.absence.index', compact('absences'));
+}
 
     // =========================================================================
     // 🟢 FITUR PERSETUJUAN STATUS HARIAN (PENGALIRAN KARYAWAN)
@@ -133,33 +140,55 @@ class AbsenceAdminController extends Controller
     /**
      * Tampilkan halaman laporan dan filter absensi (Disinkronkan dengan view filter Bulan/Tahun).
      */
-    public function reports(Request $request)
-    {
-        $query = Absence::with('user');
+   public function reports(Request $request)
+{
+    $month = $request->get('month', date('m'));
+    $year = $request->get('year', date('Y'));
+    $date = $request->date;
 
-        $month = $request->month;
-        $year = $request->year;
-        $date = $request->date;
+    $lateDeductionAmount = \App\Models\Setting::where('key', 'late_deduction_amount')->value('value') ?? 0;
 
-        if ($date) {
-            // Filter Berdasarkan Tanggal Spesifik
-            $query->whereDate('date', $date);
-        } elseif ($month && $year) {
-            // Filter Berdasarkan Bulan dan Tahun
-            $query->whereMonth('date', $month)->whereYear('date', $year);
-        } elseif ($year) {
-            // Filter Berdasarkan Tahun Saja
-            $query->whereYear('date', $year);
-        }
+    $query = \App\Models\User::where('role', '!=', 'admin')
+        ->with(['salary', 'absences' => function($q) use ($month, $year, $date) {
+            if ($date) {
+                $q->whereDate('date', $date);
+            } else {
+                $q->whereMonth('date', $month)->whereYear('date', $year);
+            }
+        }]);
+
+    $users = $query->paginate(15)->withQueryString();
+
+    $reportData = $users->getCollection()->map(function($user) use ($lateDeductionAmount) {
+        $absences = $user->absences;
         
-        // MENGGUNAKAN PAGINATE() untuk mendapatkan objek Paginator
-        // Menampilkan data harian, bukan dikelompokkan (sesuai view)
-        $absences = $query->orderBy('date', 'desc')->paginate(20)->withQueryString(); 
+        // Gunakan optional() agar tidak error jika user belum punya data di tabel salaries
+        $basicSalary = optional($user->salary)->basic_salary ?? 0;
+        $totalOvertimePay = $absences->sum('overtime_pay');
+        
+        $attendanceCount = $absences->whereNotNull('time_in')->count();
+        
+        // Perbaikan: Gunakan filter agar lebih aman terhadap perbedaan huruf besar/kecil (Late vs late)
+        $lateCount = $absences->filter(function($item) {
+            return strtolower($item->status) === 'late' || strtolower($item->status) === 'terlambat';
+        })->count();
+        
+        $totalDeduction = $lateCount * $lateDeductionAmount;
+        $takeHomePay = ($basicSalary + $totalOvertimePay) - $totalDeduction;
 
-        // $users dan logic start_date/end_date tidak lagi diperlukan di sini
-        // karena filtering dilakukan oleh $month/$year/$date dan data langsung dipaginasi.
-        return view('admin.reports.index', compact('absences'));
-    }
+        return [
+            'name' => $user->name,
+            'attendance_count' => $attendanceCount,
+            'late_count' => $lateCount,
+            'basic_salary' => $basicSalary,
+            'overtime_pay' => $totalOvertimePay,
+            'total_deduction' => $totalDeduction,
+            'take_home_pay' => $takeHomePay,
+        ];
+    });
+
+    return view('admin.reports.index', compact('users', 'reportData', 'month', 'year', 'date'));
+}
 
     /**
      * Export Laporan Absensi ke PDF.

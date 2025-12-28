@@ -124,7 +124,7 @@ class AbsenceController extends Controller
     $overtimeHours = 0.00; // Didefinisikan sebagai float/decimal
     $overtimePay = 0.00;   // Didefinisikan sebagai float/decimal
 
-    // Logika CEGAH CHECK-OUT (Sudah benar)
+    // Logika CEGAH CHECK-OUT
     $dailyStatus = DailyStatus::where('user_id', $user->id)
         ->where('date', $today)
         ->first();
@@ -151,7 +151,6 @@ class AbsenceController extends Controller
     $overtimeRateRecord = $user->overtime;
 
     // 2. Lakukan perhitungan lembur jika rate tersedia
-    // 🟢 PERBAIKAN: Gunakan $overtimeRateRecord bukan $overtimeRate.
     if ($overtimeRateRecord && $overtimeRateRecord->rate_per_hour > 0) {
         
         $endOfWork = Carbon::parse($today . ' 17:00:00', 'Asia/Jakarta');

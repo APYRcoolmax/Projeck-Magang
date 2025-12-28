@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-
-use App\Models\Overtime; // <<< TAMBAH: Import Model Overtime
+// --- PERBAIKAN: Tambahkan import ini untuk tipe data relasi ---
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable
 {
@@ -25,9 +25,7 @@ class User extends Authenticatable
         'password',
         'role',
         'referral_code',
-        // 'overtime_hourly_rate' // <<< OPSIONAL: Tambahkan ini jika Anda telah membuat kolomnya di database
     ];
-
 
     /**
      * The attributes that should be hidden for serialization.
@@ -48,12 +46,29 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
     ];
 
+    // --- RELASI MODEL ---
+
     /**
-     * Relasi ke tabel overtimes (Satu User memiliki satu Overtime Rate)
+     * Relasi ke model Absence (Satu User memiliki banyak data Absensi)
      */
-    public function overtime()
+    public function absences(): HasMany
     {
-        // PENTING: Menggunakan Overtime::class yang sudah di-import di atas
+        return $this->hasMany(Absence::class);
+    }
+
+    /**
+     * Relasi ke model Salary (Satu User memiliki satu Gaji Pokok)
+     */
+    public function salary(): HasOne
+    {
+        return $this->hasOne(Salary::class);
+    }
+
+    /**
+     * Relasi ke model Overtime (Satu User memiliki satu pengaturan lembur)
+     */
+    public function overtime(): HasOne
+    {
         return $this->hasOne(Overtime::class, 'user_id'); 
     }
 }
